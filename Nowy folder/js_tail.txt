@@ -1,0 +1,203 @@
+
+// zamknij menu po kliknięciu linku (mobile)
+navLinks.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{
+  burger.classList.remove('open');navLinks.classList.remove('open');
+}));
+
+/* 2) REVEAL przy scrollu */
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);} });
+},{threshold:0.12,rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>{ if(!el.classList.contains('in')) io.observe(el); });
+
+/* 3) LICZNIKI statystyk */
+function animateCount(el){
+  const target=+el.dataset.count;const dur=1600;const start=performance.now();
+  const fmt=(n)=>n>=1000?n.toLocaleString('pl-PL'):n;
+  function tick(now){
+    const p=Math.min((now-start)/dur,1);const eased=1-Math.pow(1-p,3);
+    el.textContent=fmt(Math.floor(eased*target));
+    if(p<1)requestAnimationFrame(tick);else el.textContent=fmt(target);
+  }
+  requestAnimationFrame(tick);
+}
+const countIO=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){animateCount(e.target);countIO.unobserve(e.target);} });
+},{threshold:0.5});
+document.querySelectorAll('[data-count]').forEach(el=>countIO.observe(el));
+
+/* 4) Parallax aurór hero (myszka) */
+const auroras=document.querySelectorAll('.aurora');
+window.addEventListener('mousemove',(e)=>{
+  const x=(e.clientX/window.innerWidth-0.5);const y=(e.clientY/window.innerHeight-0.5);
+  auroras.forEach((a,i)=>{const f=(i+1)*12;a.style.transform=`translate(${x*f}px,${y*f}px)`;});
+},{passive:true});
+
+/* 5) Rok w stopce */
+document.getElementById('year').textContent=new Date().getFullYear();
+
+/* 6) Polityka prywatności (overlay) */
+const overlay=document.getElementById('privacyOverlay');
+function openPriv(e){if(e)e.preventDefault();overlay.classList.add('open');document.body.style.overflow='hidden';}
+function closePriv(){overlay.classList.remove('open');document.body.style.overflow='';}
+document.getElementById('openPrivacy').addEventListener('click',openPriv);
+document.getElementById('openPrivacy2').addEventListener('click',openPriv);
+document.getElementById('privacyClose').addEventListener('click',closePriv);
+overlay.addEventListener('click',(e)=>{if(e.target===overlay)closePriv();});
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closePriv();});
+
+/* 7) Formularz — Formspree (AJAX) + mailto fallback */
+const form=document.getElementById('quoteForm');
+const submitBtn=document.getElementById('submitBtn');
+const formMsg=document.getElementById('formMsg');
+const mailtoBtn=document.getElementById('mailtoBtn');
+const FALLBACK_EMAIL='kontakt@sakramencki-autoskup.pl'; // >>> podmień na swój e-mail <<<
+function showMsg(text,type){formMsg.textContent=text;formMsg.className='form-msg '+type;}
+function buildSummary(){
+  const g=id=>(document.getElementById(id)?.value||'').trim();
+  return {marka:g('marka'),model:g('model'),rok:g('rok'),przebieg:g('przebieg'),stan:g('stan'),imie:g('imie'),telefon:g('telefon'),email:g('email'),wiadomosc:g('wiadomosc')};
+}
+mailtoBtn.addEventListener('click',(e)=>{
+  e.preventDefault();const d=buildSummary();
+  if(!d.marka||!d.model||!d.rok||!d.imie||!d.telefon){showMsg('Uzupełnij przynajmniej: markę, model, rok, imię i telefon.','err');return;}
+  const body=`Zgłoszenie wyceny auta — SAKRAMENCKI AutoSkup\n\nMarka: ${d.marka}\nModel: ${d.model}\nRok produkcji: ${d.rok}\nPrzebieg: ${d.przebieg||'-'} km\nStan: ${d.stan||'-'}\n\nImię: ${d.imie}\nTelefon: ${d.telefon}\nE-mail: ${d.email||'-'}\n\nWiadomość:\n${d.wiadomosc||'-'}`;
+  window.location.href=`mailto:${FALLBACK_EMAIL}?subject=${encodeURIComponent('Wycena auta — '+d.marka+' '+d.model)}&body=${encodeURIComponent(body)}`;
+});
+form.addEventListener('submit',async(e)=>{
+  e.preventDefault();showMsg('','');
+  if(!form.checkValidity()){showMsg('Uzupełnij wymagane pola zaznaczone gwiazdką (*) i zaznacz zgodę.','err');form.reportValidity();return;}
+  if(form.action.includes('XXXXXXXX')){showMsg('Brak skonfigurowanego endpointu Formspree — otwieram wysyłkę e-mailem.','err');setTimeout(()=>mailtoBtn.click(),600);return;}
+  submitBtn.classList.add('loading');
+  try{
+    const res=await fetch(form.action,{method:'POST',body:new FormData(form),headers:{'Accept':'application/json'}});
+    if(res.ok){form.reset();showMsg('✓ Dziękujemy! Zgłoszenie zostało wysłane. Skontaktujemy się z Tobą jak najszybciej.','ok');}
+    else{showMsg('Coś poszło nie tak przy wysyłce. Zadzwoń: 608 237 585.','err');}
+  }catch(err){showMsg('Brak połączenia. Spróbuj ponownie lub zadzwoń: 608 237 585.','err');}
+  finally{submitBtn.classList.remove('loading');}
+});
+
+/* 8) PRAWDZIWA MAPA (Leaflet + OpenStreetMap) */
+(function initMap(){
+  if(typeof L==='undefined'){console.warn('Leaflet nie załadowany');return;}
+  const HQ=[50.0787,19.9289];
+  const map=L.map('mapaDzialania',{center:[49.85,20.15],zoom:8,scrollWheelZoom:false,zoomControl:true});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+  map.on('click',()=>map.scrollWheelZoom.enable());
+  map.on('mouseout',()=>map.scrollWheelZoom.disable());
+  const malopolska=[[50.46,19.45],[50.45,20.10],[50.40,20.70],[50.20,21.10],[49.90,21.25],[49.55,21.05],[49.40,20.95],[49.20,20.55],[49.18,20.10],[49.30,19.75],[49.40,19.20],[49.60,19.15],[49.95,19.30],[50.20,19.30]];
+  L.polygon(malopolska,{color:'#5b8def',weight:2,opacity:.9,fillColor:'#5b8def',fillOpacity:.18}).addTo(map).bindPopup('<b>Małopolska</b><br><small>Główny obszar działania</small>');
+  const hqIcon=L.divIcon({className:'',html:'<div class="hq-pin"><span class="pin-ring"></span><span class="pin-core"></span></div>',iconSize:[18,18],iconAnchor:[9,9]});
+  L.marker(HQ,{icon:hqIcon,title:'SAKRAMENCKI AutoSkup — Kraków'}).addTo(map).bindPopup('<b>SAKRAMENCKI AutoSkup</b><br><small>Wł. Łokietka 23a, 30-010 Kraków</small><br><a href="tel:+48608237585" style="color:#e63946;font-weight:700">📞 608 237 585</a>').openPopup();
+  const cityIcon=L.divIcon({className:'',html:'<div class="city-dot"></div>',iconSize:[12,12],iconAnchor:[6,6]});
+  const miasta=[{n:'Tarnów',c:[50.0121,20.9858]},{n:'Nowy Sącz',c:[49.6249,20.7150]},{n:'Oświęcim',c:[50.0344,19.2098]},{n:'Chrzanów',c:[50.1357,19.4017]},{n:'Wieliczka',c:[49.9874,20.0648]},{n:'Bochnia',c:[49.9690,20.4290]},{n:'Olkusz',c:[50.2799,19.5650]},{n:'Zakopane',c:[49.2992,19.9496]},{n:'Myślenice',c:[49.8336,19.9388]}];
+  miasta.forEach(m=>{L.marker(m.c,{icon:cityIcon,title:m.n}).addTo(map).bindPopup('<b>'+m.n+'</b><br><small>Dojeżdżamy i odbieramy auto</small>');});
+  const mapEl=document.getElementById('mapaDzialania');
+  const mio=new IntersectionObserver((entries)=>{entries.forEach(e=>{if(e.isIntersecting){setTimeout(()=>map.invalidateSize(),250);}});},{threshold:0.1});
+  mio.observe(mapEl);
+  window.addEventListener('load',()=>setTimeout(()=>map.invalidateSize(),300));
+})();
+
+/* 9) WŁASNE ANIMOWANE PRZEWIJANIE (smooth scroll z easingiem) */
+const easeInOutCubic=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+function animatedScrollTo(targetY,duration=720){
+  const startY=window.scrollY;const dist=targetY-startY;
+  if(Math.abs(dist)<2)return;const start=performance.now();
+  function step(now){const p=Math.min((now-start)/duration,1);window.scrollTo(0,startY+dist*easeInOutCubic(p));if(p<1)requestAnimationFrame(step);}
+  requestAnimationFrame(step);
+}
+function scrollToSelector(sel){
+  const el=document.querySelector(sel);if(!el)return;
+  const top=el.getBoundingClientRect().top+window.scrollY-72;
+  animatedScrollTo(top);
+  setTimeout(()=>{el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1100);},620);
+}
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  const href=a.getAttribute('href');if(href.length<2)return;
+  a.addEventListener('click',(e)=>{
+    if(!document.querySelector(href))return;
+    e.preventDefault();burger.classList.remove('open');navLinks.classList.remove('open');
+    scrollToSelector(href);history.replaceState(null,'',href);
+  });
+});
+
+/* 10) RIPPLE — fala po kliknięciu */
+document.querySelectorAll('.btn,.nav-phone,.to-top,.fab').forEach(btn=>{
+  btn.addEventListener('click',function(e){
+    const rect=this.getBoundingClientRect();const size=Math.max(rect.width,rect.height);
+    const r=document.createElement('span');r.className='ripple';
+    r.style.width=r.style.height=size+'px';
+    r.style.left=(e.clientX-rect.left-size/2)+'px';r.style.top=(e.clientY-rect.top-size/2)+'px';
+    this.appendChild(r);setTimeout(()=>r.remove(),700);
+  });
+});
+
+/* 11) TILT 3D — karty reagują na ruch myszy */
+function addTilt(el,max=8){
+  el.classList.add('tilt');
+  el.addEventListener('mousemove',(e)=>{
+    const r=el.getBoundingClientRect();
+    const px=(e.clientX-r.left)/r.width-.5;const py=(e.clientY-r.top)/r.height-.5;
+    el.style.transform=`perspective(900px) rotateY(${px*max}deg) rotateX(${-py*max}deg) translateY(-10px)`;
+  });
+  el.addEventListener('mouseleave',()=>{el.style.transform='';});
+}
+document.querySelectorAll('.offer-card,.step,.hero-card').forEach(c=>addTilt(c,8));
+
+/* 12) MAGNETYCZNE CTA */
+document.querySelectorAll('.btn-red,.nav-phone').forEach(btn=>{
+  btn.classList.add('magnetic');
+  btn.addEventListener('mousemove',(e)=>{
+    const r=btn.getBoundingClientRect();
+    const x=(e.clientX-r.left-r.width/2)*.3;const y=(e.clientY-r.top-r.height/2)*.4;
+    btn.style.transform=`translate(${x}px,${y}px)`;
+  });
+  btn.addEventListener('mouseleave',()=>{btn.style.transform='';});
+});
+
+/* 13) GLOW podążający za kursorem */
+const glow=document.getElementById('cursorGlow');let glowVisible=false;
+window.addEventListener('mousemove',(e)=>{
+  glow.style.left=e.clientX+'px';glow.style.top=e.clientY+'px';
+  if(!glowVisible){glow.style.opacity='1';glowVisible=true;}
+},{passive:true});
+window.addEventListener('mouseout',()=>{glow.style.opacity='0';glowVisible=false;});
+
+/* 14) PŁYWAJĄCE IKONY AUT w tle hero */
+(function spawnFloats(){
+  const wrap=document.getElementById('heroFloats');if(!wrap)return;
+  const carSvg='<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h1a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-1v1a1 1 0 0 1-2 0v-1H7v1a1 1 0 0 1-2 0v-1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1zm2.2 0h9.6l-1-3H8.2l-1 3zM6.5 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm11 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>';
+  for(let i=0;i<9;i++){
+    const f=document.createElement('span');f.className='fic';
+    const size=24+Math.random()*36;f.style.width=f.style.height=size+'px';
+    f.style.left=Math.random()*100+'%';f.style.bottom='-60px';
+    const dur=12+Math.random()*14;f.style.animationDuration=dur+'s';f.style.animationDelay=(-Math.random()*dur)+'s';
+    f.innerHTML=carSvg;wrap.appendChild(f);
+  }
+})();
+
+/* 15) PARALLAX bocznych dekoracji */
+const decos=document.querySelectorAll('.side-deco');
+window.addEventListener('scroll',()=>{
+  const y=window.scrollY;
+  decos.forEach((d,i)=>{const speed=(i%3+1)*0.06;d.style.transform=`translateY(${(y*speed)%120-60}px)`;});
+},{passive:true});
+
+/* 16) PRZYCISK „do góry" */
+const toTop=document.getElementById('toTop');
+window.addEventListener('scroll',()=>{toTop.classList.toggle('show',window.scrollY>500);},{passive:true});
+toTop.addEventListener('click',()=>animatedScrollTo(0,700));
+
+/* 17) Scroll spy — aktywny link nawigacji */
+const navSections=document.querySelectorAll('section[id],header[id]');
+const spy=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      const id=e.target.id;
+      navLinks.querySelectorAll('a').forEach(a=>{a.style.color = a.getAttribute('href')==='#'+id ? '#fff' : '';});
+    }
+  });
+},{threshold:0.5});
+navSections.forEach(s=>spy.observe(s));
+</script>
+</body>
+</html>
